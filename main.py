@@ -21,6 +21,9 @@ c_main_db = main_db.cursor()
 executors_db = sqlite3.connect('db/executors.db', check_same_thread=False)
 c_executors_db = executors_db.cursor()
 
+offers_db = sqlite3.connect('db/offers.db', check_same_thread=False)
+c_offers_db = offers_db.cursor()
+
 constants_db = sqlite3.connect("db/constants.db", check_same_thread=False)
 c_constants_db = constants_db.cursor()
 
@@ -145,9 +148,83 @@ def start(message):
         if parse[0] == 1:
             bot.send_message(message.chat.id, "Здравствуйте. Какой вид спецтехники вам требуется?", reply_markup=main_customer)
         if parse[0] == 2:
-            bot.send_message(message.chat.id, 'ПРОФИЛЬ.')
+            c_executors_db.execute('SELECT * FROM executors WHERE id=' + str(message.chat.id))
+            parse = c_executors_db.fetchone()
+            print(parse)
+            tech_type = 'None'
+            if parse[1] == 1:
+                tech_type = 'Автовышка'
+            if parse[1] == 2:
+                tech_type = "Автокран"
+            if parse[1] == 3:
+                tech_type = "Кран манипулятор"
+            if parse[1] == 4:
+                tech_type = "Экскаватор"
+            if parse[1] == 5:
+                tech_type = "Самосвал"
+            if parse[1] == 6:
+                tech_type = "Грузовик"
+            bot.send_message(message.chat.id, 'ПРОФИЛЬ'
+                                              '\n\n'
+                                              'Имя: ' + str(parse[7]) + ''
+                                                                        '\n'
+                                                                        'ID: ' + str(parse[0]) + ''
+                                                                                                 '\n'
+                                                                                                 'Тип техники: ' + str(
+                tech_type) + ''
+                             '\n'
+                             'Гос. номер: ' + str(parse[2]) + ''
+                                                              '\n'
+                                                              'Номер телефона: ' + str(parse[5]) + ''
+                                                                                                   '\n')
+            bot.send_photo(message.chat.id, parse[3])
     except:
         bot.send_message(message.chat.id, 'Приветствуем Вас в сервисе обмена заказами СПЕЦРЕНТ.\nВыберите роль', reply_markup=register_role)
+
+@bot.message_handler(commands=['offer'])
+def offer(message):
+    text = message.text
+    id = text.split(' ')
+    print(id[1])
+    try:
+        c_main_db.execute("SELECT * FROM main WHERE id="+str(id[1]))
+        c_offers_db.execute("INSERT INTO offers(worker_id,nedded_id) VALUES ('"+str(message.from_user.id)+"','"+str(id[1])+"')")
+        c_executors_db.execute("SELECT * FROM executors WHERE id="+str(message.from_user.id))
+        parse = c_executors_db.fetchone()
+        parse2 = c_main_db.fetchone()
+        print(parse2)
+        print(parse)
+        save()
+        bot.send_message(id[1], 'К вам поступило предложение от '+str(parse[7])+'. Действующий номер телефона - '+str(parse[5])+'.\n Полная информация: `/look '+str(message.from_user.id)+'`',parse_mode='Markdown')
+    except Exception as e:
+        bot.send_message(message.chat.id, 'Ошибка! ID не верный или не зарегестрирован')
+        print(e)
+
+@bot.message_handler(commands=['look'])
+def look(message):
+    text = message.text
+    id = text.split(' ')
+    try:
+        c_executors_db.execute("SELECT * FROM executors WHERE id="+str(id[1]))
+        parse = c_executors_db.fetchone()
+        print(parse)
+        tech_type = 'None'
+        if parse[1] == 1:
+            tech_type = 'Автовышка'
+        if parse[1] == 2:
+            tech_type = "Автокран"
+        if parse[1] == 3:
+            tech_type = "Кран манипулятор"
+        if parse[1] == 4:
+            tech_type = "Экскаватор"
+        if parse[1] == 5:
+            tech_type = "Самосвал"
+        if parse[1] == 6:
+            tech_type = "Грузовик"
+        bot.send_photo(message.chat.id, parse[3])
+        bot.send_message(message.chat.id, 'ПРОФИЛЬ\n\nИмя: ' + str(parse[7]) + '\nID: ' + str(parse[0]) + '\nТип техники: ' + str(tech_type) + '\nГос. номер: ' + str(parse[2]) + '\nНомер телефона: ' + str(parse[5]))
+    except:
+        bot.send_message(message.chat.id, 'ID не верен или не зарегестрирован.')
 
 @bot.message_handler(commands=['a_chats'])
 def a_chats(message):
@@ -986,6 +1063,103 @@ def text_handler(message):
                     c_crane_db.execute("SELECT * FROM crane WHERE id =" + str(message.chat.id))
                     parse = c_crane_db.fetchone()
                     print(parse)
+            if status == 36:
+                bot.send_message(message.chat.id, 'Опишите для каких работ вам нужен экскаватор.',reply_markup=remove_keyboard)
+                c_excalator_db.execute("UPDATE excalator SET tech_type='"+str(message.text)+"' WHERE id="+str(message.chat.id))
+                c_main_db.execute("UPDATE main SET status = 37 WHERE id="+str(message.chat.id))
+            if status == 37:
+                bot.send_message(message.chat.id, 'Введите число месяца работ.')
+                c_excalator_db.execute(
+                    "UPDATE excalator SET tech_task='" + str(message.text) + "' WHERE id=" + str(message.chat.id))
+                c_main_db.execute("UPDATE main SET status=38 WHERE id=" + str(message.chat.id))
+                save()
+            if status == 38:
+                text = message.text
+                month = text.split(' ')
+                print(month[0])
+                try:
+                    if int(month[0]) <= 12:
+                        c_excalator_db.execute(
+                            "UPDATE excalator SET month =" + str(month[0]) + " WHERE id=" + str(message.chat.id))
+                        c_main_db.execute("UPDATE main SET status = 39 WHERE id=" + str(message.chat.id))
+                        bot.send_message(message.chat.id, "Укажите день работ.")
+                        save()
+                    else:
+                        bot.send_message(message.chat.id, "Ошибка. Укажите верное число месяца.")
+                except:
+                    bot.send_message(dev_id, 'Твой косяк, ламер. Исправь.')
+            if status == 39:
+                text = message.text
+                day = text.split(' ')
+                print(day[0])
+                try:
+                    if int(day[0]) <= 31:
+                        c_excalator_db.execute(
+                            "UPDATE excalator SET day =" + str(day[0]) + " WHERE id=" + str(message.chat.id))
+                        c_main_db.execute("UPDATE main SET status = 40 WHERE id=" + str(message.chat.id))
+                        bot.send_message(message.chat.id, "Укажите время работ.")
+                        save()
+                    else:
+                        bot.send_message(message.chat.id, 'Убедитесь в правильности дня.')
+                except:
+                    bot.send_message(dev_id, 'Опять костыль')
+            if status == 40:
+                c_excalator_db.execute(
+                    "UPDATE excalator SET time = '" + str(message.text) + "' WHERE id=" + str(message.chat.id))
+                c_main_db.execute("UPDATE main SET status = 411 WHERE id=" + str(message.chat.id))
+                save()
+                bot.send_message(message.chat.id,
+                                 "В каком городе вы планируете проводить работы.")
+            if status == 411:
+                c_excalator_db.execute("UPDATE excalator SET city = '"+str(message.text)+"' WHERE id =" + str(message.chat.id))
+                c_main_db.execute("UPDATE main SET status = 42 WHERE id=" + str(message.chat.id))
+                save()
+                bot.send_message(message.chat.id, 'Введите адрес проведения работ.', reply_markup=remove_keyboard)
+            if status == 42:
+                c_excalator_db.execute(
+                    "UPDATE excalator SET adress ='" + str(message.text) + "' WHERE id =" + str(message.chat.id))
+                c_excalator_db.execute("SELECT * FROM excalator WHERE id=" + str(message.chat.id))
+                c_main_db.execute("UPDATE main SET status = 43 WHERE id=" + str(message.chat.id))
+                save()
+                data = c_excalator_db.fetchone()
+                month = int(data[5])
+                day = int(data[4])
+                print(data)
+                bot.send_message(message.chat.id, 'Давайте проверим ваш заказ.\n'
+                                                  'Вам нужен экскаватор '+str(data[2])+' для '+str(data[3])+' '+str(day)+'.'+str(month)+'.2018 по адресу: '+str(data[7])+', '+str(data[8])+' в '+str(data[6])+'. Всё верно?',reply_markup=confirm)
+            if status == 43:
+                if message.text == 'Да':
+                    bot.send_message(message.chat.id, 'Выберите способ оплаты.', reply_markup=pay_type)
+                    c_main_db.execute("UPDATE main SET status=44 WHERE id="+str(message.chat.id))
+                    save()
+                if message.text == 'Нет':
+                    c_main_db.execute("UPDATE main SET status=1 WHERE id="+str(message.chat.id))
+                    c_excalator_db.execute("DELETE FROM excalator WHERE id="+str(message.chat.id))
+                    save()
+                    bot.send_message(message.chat.id, 'Ваш заказ отменен. Начнем сначала?',reply_markup=main_customer)
+            if status == 44:
+                c_main_db.execute("UPDATE main SET status=1 WHERE id=" + str(message.chat.id))
+                c_excalator_db.execute("UPDATE excalator SET pay_type='"+str(message.text)+"' WHERE id="+str(message.chat.id))
+                save()
+                c_excalator_db.execute("SELECT * FROM excalator WHERE id="+str(message.chat.id))
+                parse = c_excalator_db.fetchone()
+                print(parse)
+                bot.send_message(message.chat.id, 'Ваш заказ принят. Ожидайте.\n'
+                                                  'Возможно вам понадобится что то ещё?',reply_markup=main_customer)
+                month = int(data[5])
+                day = int(data[4])
+                bot.send_message(excalator_chat, 'НОВЫЙ ЗАКАЗ.\n'
+                                                 'Заказ #'+str(parse[0])+'. Требуется '+str(parse[2])+' для '+str(parse[3])+' по адресу '+str(parse[7])+', '+str(parse[8])+' '+str(day)+'.'+str(month)+'.2018 в '+str(parse[6])+'. Оплата '+str(parse[9])+
+                                                                                                                                                                                                                                'Для предложения помощи напишите `/offer '+str(parse[1]+' `'),parse_mode='Markdown')
+            if message.text == 'Экскаватор':
+                bot.send_message(message.chat.id,
+                                 'Хорошо. Нам понадобятся некоторые данные. Пожалуйста, выберите Ваши требования к спецтехнике из клавиатуры ниже.')
+                bot.send_message(message.chat.id, 'Выберите тип экскаватора', reply_markup=excalator_1)
+                c_excalator_db.execute("INSERT INTO excalator(id) VALUES ('"+str(message.chat.id)+"')")
+                save()
+                c_main_db.execute("UPDATE main SET status = 36 WHERE id="+str(message.chat.id))
+
+
 
 
 
