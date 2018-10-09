@@ -39,6 +39,12 @@ c_crane_arm = crane_arm.cursor()
 excalator_db = sqlite3.connect('db/excalator.db', check_same_thread=False)
 c_excalator_db = excalator_db.cursor()
 
+samosval_db = sqlite3.connect('db/samosval.db', check_same_thread=False)
+c_samosval_db = samosval_db.cursor()
+
+truck_db = sqlite3.connect('db/truck.db', check_same_thread=False)
+c_truck_db = truck_db.cursor()
+
 dev_id = 357572186
 derill_chat = 'https://t.me/joinchat/FVAeWlByBoChbPLF0M9bmg'
 crane_chat = 'https://t.me/joinchat/FVAeWk2sv5YhUt07YeV1lA'
@@ -72,9 +78,12 @@ executors_1 = types.ReplyKeyboardMarkup(True)
 executors_1.row("Автoвышка","Автoкран","Кран манипулятoр")
 executors_1.row("Экскаватoр","Самoсвал","Грузoвик")
 
+samosval_1 = types.ReplyKeyboardMarkup(True)
+samosval_1.row('5т',"10т","20т")
+samosval_1.row('25т','30т')
+
 executors_2 = types.ReplyKeyboardMarkup(True)
 executors_2.row('Профиль')
-executors_2.row('Активный заказ')
 
 car_derric_1 = types.ReplyKeyboardMarkup(True)
 car_derric_1.row('До 15 метров', 'До 18 метров', 'До 22 метров')
@@ -135,6 +144,9 @@ def save():
     crane_arm.commit()
     excalator_db.commit()
     executors_db.commit()
+    samosval_db.commit()
+    truck_db.commit()
+
 
 # !! MAIN FUNCS SECTION END !! #
 
@@ -324,6 +336,11 @@ def text_handler(message):
             main_db.commit()
         else:
             bot.send_message(message.chat.id, "К сожалению, я вас не понимаю. Выберите вариант из клавиатуры.")
+    if message.text == 'Самосвал':
+        c_samosval_db.execute("INSERT INTO samosval(id) VALUES ('"+str(message.chat.id)+"')")
+        c_main_db.execute("UPDATE main SET status=45 WHERE id="+str(message.chat.id))
+        bot.send_message(message.chat.id, 'Хорошо. Нам понадобятся некоторые данные.Пожалуйста, выберите Ваши требования к технике.')
+        bot.send_message(message.chat.id,'Какой тоннаж самосвала вам требуется?', reply_markup=samosval_1)
     if message.text == 'Профиль':
         c_executors_db.execute('SELECT * FROM executors WHERE id='+str(message.chat.id))
         parse = c_executors_db.fetchone()
@@ -1150,7 +1167,110 @@ def text_handler(message):
                 day = int(data[4])
                 bot.send_message(excalator_chat, 'НОВЫЙ ЗАКАЗ.\n'
                                                  'Заказ #'+str(parse[0])+'. Требуется '+str(parse[2])+' для '+str(parse[3])+' по адресу '+str(parse[7])+', '+str(parse[8])+' '+str(day)+'.'+str(month)+'.2018 в '+str(parse[6])+'. Оплата '+str(parse[9])+
-                                                                                                                                                                                                                                'Для предложения помощи напишите `/offer '+str(parse[1]+' `'),parse_mode='Markdown')
+                                                                                                                                                    'Для предложения помощи напишите `/offer '+str(parse[1]+' `'),parse_mode='Markdown')
+            if status == 45:
+                bot.send_message(message.chat.id, 'Что планируете перевозить самосвалом?')
+                c_samosval_db.execute("UPDATE samosval SET tonns='"+str(message.text)+"' WHERE id="+str(message.chat.id))
+                c_main_db.execute("UPDATE main SET status=46 WHERE id="+str(message.chat.id))
+                save()
+            if status == 46:
+                bot.send_message(message.chat.id, 'Какое количество смен планируете работать?')
+                c_main_db.execute('UPDATE main SET status=47 WHERE id='+str(message.chat.id))
+                c_samosval_db.execute("UPDATE samosval SET tech_task='"+str(message.text)+"' WHERE id="+str(message.chat.id))
+                save()
+            if status == 47:
+                bot.send_message(message.chat.id, 'Введите число месяца работ.')
+                c_samosval_db.execute(
+                    "UPDATE samosval SET smens='" + str(message.text) + "' WHERE id=" + str(message.chat.id))
+                c_main_db.execute("UPDATE main SET status=48 WHERE id=" + str(message.chat.id))
+                save()
+            if status == 48:
+                text = message.text
+                month = text.split(' ')
+                print(month[0])
+                try:
+                    if int(month[0]) <= 12:
+                        c_samosval_db.execute(
+                            "UPDATE samosval SET month =" + str(month[0]) + " WHERE id=" + str(message.chat.id))
+                        c_main_db.execute("UPDATE main SET status = 49 WHERE id=" + str(message.chat.id))
+                        bot.send_message(message.chat.id, "Укажите день работ.")
+                        save()
+                    else:
+                        bot.send_message(message.chat.id, "Ошибка. Укажите верное число месяца.")
+                except:
+                    bot.send_message(dev_id, 'Твой косяк, ламер. Исправь.')
+            if status == 49:
+                text = message.text
+                day = text.split(' ')
+                print(day[0])
+                try:
+                    if int(day[0]) <= 31:
+                        c_samosval_db.execute(
+                            "UPDATE samosval SET day =" + str(day[0]) + " WHERE id=" + str(message.chat.id))
+                        c_main_db.execute("UPDATE main SET status = 50 WHERE id=" + str(message.chat.id))
+                        bot.send_message(message.chat.id, "Укажите время работ.")
+                        save()
+                    else:
+                        bot.send_message(message.chat.id, 'Убедитесь в правильности дня.')
+                except:
+                    bot.send_message(dev_id, 'Опять костыль')
+            if status == 50:
+                c_samosval_db.execute(
+                    "UPDATE samosval SET time = '" + str(message.text) + "' WHERE id=" + str(message.chat.id))
+                c_main_db.execute("UPDATE main SET status = 51 WHERE id=" + str(message.chat.id))
+                save()
+                bot.send_message(message.chat.id,
+                                 "В каком городе вы планируете проводить работы.")
+            if status == 51:
+                c_samosval_db.execute(
+                    "UPDATE samosval SET city = '" + str(message.text) + "' WHERE id =" + str(message.chat.id))
+                c_main_db.execute("UPDATE main SET status = 51 WHERE id=" + str(message.chat.id))
+                save()
+                bot.send_message(message.chat.id, 'Введите адрес проведения работ.', reply_markup=remove_keyboard)
+            if status == 52:
+                c_samosval_db.execute(
+                    "UPDATE samosval SET adress ='" + str(message.text) + "' WHERE id =" + str(message.chat.id))
+                c_samosval_db.execute("SELECT * FROM samosval WHERE id=" + str(message.chat.id))
+                c_main_db.execute("UPDATE main SET status = 53 WHERE id=" + str(message.chat.id))
+                save()
+                data = c_excalator_db.fetchone()
+                month = int(data[7])
+                day = int(data[6])
+                print(data)
+                bot.send_message(message.chat.id, 'Давайте проверим ваш заказ.\n'
+                                                  'Вам нужен самовал до ' + str(data[2]) + ' для перевозки ' + str(
+                    data[3]) + '. Примерное количество смен: '+str(data[4])+'. Начало работ' + str(day) + '.' + str(month) + '.2018 по адресу: ' + str(data[9]) + ', ' + str(
+                    data[10]) + ' в ' + str(data[8]) + '. Всё верно?', reply_markup=confirm)
+            if status == 53:
+                if message.text == 'Да':
+                    bot.send_message(message.chat.id, 'Выберите способ оплаты.', reply_markup=pay_type)
+                    c_main_db.execute("UPDATE main SET status=54 WHERE id=" + str(message.chat.id))
+                    save()
+                if message.text == 'Нет':
+                    c_main_db.execute("UPDATE main SET status=1 WHERE id=" + str(message.chat.id))
+                    c_samosval_db.execute("DELETE FROM samosval WHERE id=" + str(message.chat.id))
+                    save()
+                    bot.send_message(message.chat.id, 'Ваш заказ отменен. Начнем сначала?', reply_markup=main_customer)
+            if status == 54:
+                c_main_db.execute("UPDATE main SET status=1 WHERE id=" + str(message.chat.id))
+                c_samosval_db.execute(
+                    "UPDATE samosval SET pay_type='" + str(message.text) + "' WHERE id=" + str(message.chat.id))
+                save()
+                c_samosval_db.execute("SELECT * FROM samosval WHERE id=" + str(message.chat.id))
+                parse = c_excalator_db.fetchone()
+                print(parse)
+                bot.send_message(message.chat.id, 'Ваш заказ принят. Ожидайте.\n'
+                                                  'Возможно вам понадобится что то ещё?', reply_markup=main_customer)
+                month = int(data[7])
+                day = int(data[6])
+                bot.send_message(samosval_chat, 'НОВЫЙ ЗАКАЗ.\n'
+                                                 'Заказ #' + str(parse[0]) + '. Требуется самосвал до ' + str(
+                    parse[2]) + ' для перевозки ' + str(parse[3]) + ' по адресу ' + str(parse[9]) + ', ' + str(
+                    parse[10]) + ' ' + str(day) + '.' + str(month) + '.2018 в ' + str(parse[8]) + '. Оплата ' + str(
+                    parse[5]) +
+                                 '. Количество смен: '+str(parse[4])+'.\nДля предложения помощи напишите `/offer ' + str(parse[1] + ' `'),
+                                 parse_mode='Markdown')
+
             if message.text == 'Экскаватор':
                 bot.send_message(message.chat.id,
                                  'Хорошо. Нам понадобятся некоторые данные. Пожалуйста, выберите Ваши требования к спецтехнике из клавиатуры ниже.')
